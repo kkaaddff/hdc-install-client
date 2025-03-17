@@ -1,5 +1,6 @@
 import ProTable, { ActionType, ProColumns } from '@ant-design/pro-table'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { Button, Card, Form, Input, message, Modal, Progress, Space, Spin, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
@@ -15,8 +16,12 @@ function App() {
   const [selectedBuild, setSelectedBuild] = useState<BuildEntity | null>(null)
   const [installing, setInstalling] = useState<boolean>(false)
   const [installProgress, setInstallProgress] = useState<number>(0)
+  const [installOutput, setInstallOutput] = useState<string>('')
+  const [installStatus, setInstallStatus] = useState<'idle' | 'running' | 'success' | 'failed'>(
+    'idle'
+  )
+  const outputRef = useRef<HTMLPreElement>(null)
 
-  // Fetch baseUrl from config when component mounts
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -26,7 +31,6 @@ function App() {
           return
         }
         setBaseUrl(baseUrl)
-        // Trigger table reload when baseUrl is successfully set
         actionRef.current?.reload()
       } catch (error) {
         message.error('获取 baseUrl 失败')
@@ -34,6 +38,22 @@ function App() {
     }
     fetchConfig()
   }, [])
+
+  useEffect(() => {
+    const unlisten = listen('hdc-output', (event) => {
+      const output = event.payload as string
+      setInstallOutput((prev) => prev + output)
+    })
+    return () => {
+      unlisten.then((unlistenFn) => unlistenFn())
+    }
+  }, [])
+
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight
+    }
+  }, [installOutput])
 
   const handleSearch = (values: any) => {
     console.log('Search form values:', values)
@@ -48,54 +68,19 @@ function App() {
   const handleInstall = (record: BuildEntity) => {
     setSelectedBuild(record)
     setInstallModalVisible(true)
+    setInstallStatus('idle')
   }
 
   const handleInstallModalCancel = () => {
+    if (installStatus === 'running') {
+      message.warning('安装正在进行中，请等待完成')
+      return
+    }
     setInstallModalVisible(false)
     setSelectedBuild(null)
-  }
-
-  const simulateProgress = () => {
-    setInstalling(true)
+    setInstallOutput('')
     setInstallProgress(0)
-
-    // Simulate progress with faster initial progress and slower later progress
-    let progress = 0
-    const totalTime = 5 * 60 * 1000 // 5 minutes in milliseconds
-    const interval = 1000 // Update every second
-    const totalSteps = totalTime / interval
-
-    // 添加超时标记
-    let isTimedOut = false
-
-    // 设置超时处理
-    const timeoutId = setTimeout(() => {
-      isTimedOut = true
-      setInstallProgress(95) // 卡在95%
-      message.warning('安装时间较长，请耐心等待...')
-    }, totalTime)
-
-    const timer = setInterval(() => {
-      progress += 1
-
-      // 如果已超时，不再更新进度
-      if (isTimedOut) return
-
-      // Calculate a non-linear progress that starts faster and slows down
-      // First 70% of progress happens in first 40% of time
-      const adjustedProgress =
-        progress <= totalSteps * 0.4
-          ? (progress / (totalSteps * 0.4)) * 70
-          : 70 + ((progress - totalSteps * 0.4) / (totalSteps * 0.6)) * 30
-
-      setInstallProgress(Math.min(Math.round(adjustedProgress), 95)) // 最高到95%，留5%给最终完成
-
-      if (progress >= totalSteps) {
-        clearInterval(timer)
-      }
-    }, interval)
-
-    return { timer, timeoutId }
+    setInstallStatus('idle')
   }
 
   const handleInstallModalOk = async () => {
@@ -105,32 +90,44 @@ function App() {
         return
       }
 
-      // Start progress simulation
-      const { timer: progressTimer, timeoutId } = simulateProgress()
+      setInstalling(true)
+      setInstallProgress(0)
+      setInstallOutput('')
+      setInstallStatus('running')
 
-      // Call install API
+      let progress = 0
+      const progressTimer = setInterval(() => {
+        progress += 1
+        const adjustedProgress =
+          progress <= 40 ? (progress / 40) * 70 : 70 + ((progress - 40) / 60) * 25
+
+        setInstallProgress(Math.min(Math.round(adjustedProgress), 95))
+      }, 1000)
 
       try {
-        await handleExecute(selectedBuild.downloadUrl)
+        const [_, code] = await handleExecute(selectedBuild.downloadUrl)
 
-        // Complete the progress to 100% when API returns
         clearInterval(progressTimer)
-        clearTimeout(timeoutId)
+
         setInstallProgress(100)
 
         setTimeout(() => {
+          if (code === 0) {
+            message.success('安装成功')
+            setInstallStatus('success')
+          } else {
+            message.error('安装失败')
+            setInstallStatus('failed')
+          }
           setInstalling(false)
-          setInstallModalVisible(false)
-          message.success('安装成功')
         }, 500)
       } catch (error) {
         clearInterval(progressTimer)
-        clearTimeout(timeoutId)
         setInstalling(false)
+        setInstallStatus('failed')
         message.error('安装失败')
       }
     } catch (error) {
-      // Form validation failed
       console.error('Form validation failed:', error)
     }
   }
@@ -144,7 +141,7 @@ function App() {
     {
       title: '构建类型',
       dataIndex: 'buildType',
-      width: 120,
+      width: 80,
       valueEnum: {
         debug: { text: 'Debug', status: 'default' },
         release: { text: 'Release', status: 'success' },
@@ -161,40 +158,28 @@ function App() {
     {
       title: '构建时间',
       dataIndex: 'buildTime',
-      width: 180,
+      width: 150,
       hideInSearch: true,
       render: (_, record) => dayjs(record.buildTime).format('YYYY-MM-DD HH:mm:ss'),
     },
     {
       title: '构建编号',
       dataIndex: 'buildNumber',
-      width: 120,
+      width: 80,
       hideInSearch: true,
     },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
-      width: 180,
+      width: 150,
       hideInSearch: true,
       render: (_, record) => dayjs(record.createdAt).format('YYYY-MM-DD HH:mm:ss'),
     },
     {
       title: '操作',
-      width: 180,
+      width: 80,
       valueType: 'option',
       render: (_, record) => [
-        <a
-          key='download'
-          onClick={() => {
-            if (record.downloadUrl) {
-              window.open(baseUrl + record.downloadUrl)
-              message.success('开始下载')
-            } else {
-              message.error('文件路径不存在')
-            }
-          }}>
-          下载
-        </a>,
         <a key='install' onClick={() => handleInstall(record)}>
           安装
         </a>,
@@ -202,29 +187,22 @@ function App() {
     },
   ]
 
-  const handleExecute = async (downloadUrl: string) => {
+  const handleExecute = async (downloadUrl: string): Promise<[string, number]> => {
     try {
-      try {
-        const result = await invoke('call_hdc', {
-          download_url: downloadUrl,
-        })
-        message.success('执行成功')
-        Modal.success({
-          title: '执行结果',
-          content: <pre>{result as string}</pre>,
-        })
-      } catch (error) {
-        message.error(`执行失败: ${error}`)
-      } finally {
-      }
+      const result = await invoke<[string, number]>('call_hdc', {
+        downloadUrl: 'https:' + baseUrl + downloadUrl,
+      })
+
+      return result
     } catch (error) {
-      // 表单验证失败
+      message.error(`执行失败: ${error}`)
+      throw error
     }
   }
 
   return (
     <div className='builds-management'>
-      <Spin tip='安装中...' spinning={installing} fullscreen>
+      <Spin tip='安装中...' spinning={installing}>
         <Card className='search-card'>
           <Form form={searchForm} onFinish={handleSearch} layout='inline'>
             <Form.Item name='appName' label='应用名称'>
@@ -291,23 +269,36 @@ function App() {
             }}
           />
         </Card>
-
-        {/* Install Modal */}
         <Modal
           title='安装应用'
           open={installModalVisible}
           onOk={handleInstallModalOk}
           onCancel={handleInstallModalCancel}
           confirmLoading={installing}
+          okButtonProps={{ disabled: installStatus === 'success' }}
           cancelButtonProps={{ disabled: installing }}
-          destroyOnClose
+          destroyOnClose={false}
           className='install-modal'
           maskClosable={false}
-          closable={false}>
-          {installing ? (
+          closable={!installing}
+          width={800}>
+          {installStatus === 'running' ? (
             <div className='install-progress'>
               <Progress percent={installProgress} status='active' />
               <p>应用正在安装中，请耐心等待...</p>
+              <div className='install-output'>
+                <pre
+                  ref={outputRef}
+                  style={{
+                    maxHeight: '300px',
+                    overflow: 'auto',
+                    background: '#f0f0f0',
+                    padding: '10px',
+                    borderRadius: '4px',
+                  }}>
+                  {installOutput}
+                </pre>
+              </div>
             </div>
           ) : (
             <Form layout='vertical'>
@@ -325,6 +316,21 @@ function App() {
                   <p>
                     <strong>构建编号:</strong> {selectedBuild.buildNumber}
                   </p>
+                  {installStatus !== 'idle' && (
+                    <div className='install-output'>
+                      <pre
+                        ref={outputRef}
+                        style={{
+                          maxHeight: '300px',
+                          overflow: 'auto',
+                          background: '#f0f0f0',
+                          padding: '10px',
+                          borderRadius: '4px',
+                        }}>
+                        {installOutput}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               )}
             </Form>
