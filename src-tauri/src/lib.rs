@@ -4,13 +4,14 @@ use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
 #[tauri::command]
-async fn call_hdc(app: tauri::AppHandle, args: Vec<String>) -> Result<String, String> {
+async fn call_hdc(app: tauri::AppHandle, args: Vec<String>) -> Result<(String, i32), String> {
     println!("args: {:?}", args);
     let sidecar_command = app.shell().sidecar("hdc").unwrap().args(args);
     let (mut rx, mut _child) = sidecar_command.spawn().unwrap();
     println!("hdc 执行成功");
 
     let mut stdout = String::new();
+    let mut code = -1;
 
     // 接收并处理所有输出
     while let Some(line) = rx.recv().await {
@@ -26,13 +27,15 @@ async fn call_hdc(app: tauri::AppHandle, args: Vec<String>) -> Result<String, St
                 return Err(format!("执行命令时出错: {}", err));
             }
             CommandEvent::Terminated(payload) => {
-                stdout.push_str(&format!("命令执行完成，退出码: {:?}\n", payload.code));
+                code = payload.code.unwrap();
             }
             _ => {}
         }
     }
     println!("stdout: {}", stdout);
-    Ok(stdout)
+    println!("code: {}", code);
+
+    Ok((stdout, code))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

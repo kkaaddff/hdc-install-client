@@ -31,6 +31,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/hdc"]
+    "externalBin": ["binaries/hdc"],
+    "resources": ["binaries/**/*"]
   }
 }
