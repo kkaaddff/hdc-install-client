@@ -27,7 +27,7 @@ async fn call_hdc(app: tauri::AppHandle, args: Vec<String>) -> Result<(String, i
                 return Err(format!("执行命令时出错: {}", err));
             }
             CommandEvent::Terminated(payload) => {
-                code = payload.code.unwrap();
+                code = payload.code.unwrap_or_default();
             }
             _ => {}
         }

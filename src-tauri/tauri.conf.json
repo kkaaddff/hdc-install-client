@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "hos-installer",
+  "productName": "鸿蒙测试应用安装器",
   "version": "0.1.0",
   "identifier": "com.amh.hos-installer",
   "build": {
@@ -26,6 +26,8 @@
     "targets": "all",
     "icon": ["icons/icon.png"],
     "externalBin": ["binaries/hdc"],
-    "resources": ["binaries/**/*"]
+    "resources": {
+      "binaries/libusb_shared.dylib": "libusb_shared.dylib"
+    }
   }
 }
