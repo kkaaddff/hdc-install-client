@@ -13,12 +13,14 @@
     "windows": [
       {
         "title": "鸿蒙测试应用安装器",
-        "width": 800,
-        "height": 600
+        "width": 1200,
+        "height": 800
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": ["'self'", "https:"]
+      }
     }
   },
   "bundle": {

@@ -34,7 +34,6 @@ async fn call_hdc(app: tauri::AppHandle, args: Vec<String>) -> Result<(String, i
     }
     println!("stdout: {}", stdout);
     println!("code: {}", code);
-
     Ok((stdout, code))
 }
 
