@@ -19,12 +19,6 @@ export interface BuildQueryParams {
   page?: number
 }
 
-export interface InstallParams {
-  downloadUrl: string
-  deviceIp: string
-  devicePort: number
-}
-
 /**
  * 通用请求函数，使用 fetch API
  */
@@ -89,27 +83,6 @@ export const queryBuilds = async (params: BuildQueryParams, baseUrl: string = ''
 }
 
 /**
- * Check build status
- */
-export const checkBuildStatus = async (baseUrl: string = '') => {
-  const res = await request(`${baseUrl}/harmony/lock-status`, {
-    method: 'GET',
-  })
-  return res
-}
-
-/**
- * Install build
- */
-export const installBuild = async (params: InstallParams, baseUrl: string = '') => {
-  const res = await request(`${baseUrl}/harmony/install`, {
-    method: 'POST',
-    data: params,
-  })
-  return res
-}
-
-/**
  * Get config for harmony builds
  */
 export const getHarmonyConfig = async () => {
@@ -119,11 +92,4 @@ export const getHarmonyConfig = async () => {
   })
 
   return (res?.data?.value?.url as string) ?? ''
-}
-
-export default {
-  queryBuilds,
-  checkBuildStatus,
-  installBuild,
-  getHarmonyConfig,
 }

@@ -3,23 +3,11 @@ import { invoke } from '@tauri-apps/api/core'
 import { Button, Card, Form, Input, message, Modal, Progress, Space, Spin, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
-import type { BuildEntity, BuildQueryParams, InstallParams } from './api'
-import { checkBuildStatus, getHarmonyConfig, installBuild, queryBuilds } from './api'
+import type { BuildEntity, BuildQueryParams } from './api'
+import { getHarmonyConfig, queryBuilds } from './api'
 import './App.css'
 
-interface DataItem {
-  key: string
-  name: string
-  description: string
-}
-
 function App() {
-  const [messageApi, contextHolder] = message.useMessage()
-
-  const [executeLoading, setExecuteLoading] = useState(false)
-  const [modalVisible, setModalVisible] = useState(false)
-  const [currentItem, setCurrentItem] = useState<DataItem | null>(null)
-  const [form] = Form.useForm()
   const actionRef = useRef<ActionType>()
   const [searchForm] = Form.useForm()
   const [baseUrl, setBaseUrl] = useState<string>('')
@@ -27,7 +15,6 @@ function App() {
   const [selectedBuild, setSelectedBuild] = useState<BuildEntity | null>(null)
   const [installing, setInstalling] = useState<boolean>(false)
   const [installProgress, setInstallProgress] = useState<number>(0)
-  const [installModalForm] = Form.useForm()
 
   // Fetch baseUrl from config when component mounts
   useEffect(() => {
@@ -61,7 +48,6 @@ function App() {
   const handleInstall = (record: BuildEntity) => {
     setSelectedBuild(record)
     setInstallModalVisible(true)
-    installModalForm.resetFields()
   }
 
   const handleInstallModalCancel = () => {
@@ -114,18 +100,8 @@ function App() {
 
   const handleInstallModalOk = async () => {
     try {
-      const values = await installModalForm.validateFields()
-
       if (!selectedBuild) {
         message.error('未选择构建记录')
-        return
-      }
-
-      // Check build status first
-      const statusResponse = await checkBuildStatus(baseUrl)
-
-      if (statusResponse.locked) {
-        message.error('该构建不可安装，请检查构建状态')
         return
       }
 
@@ -133,14 +109,9 @@ function App() {
       const { timer: progressTimer, timeoutId } = simulateProgress()
 
       // Call install API
-      const installParams: InstallParams = {
-        downloadUrl: selectedBuild.downloadUrl,
-        deviceIp: values.ip,
-        devicePort: values.port,
-      }
 
       try {
-        const installResponse = await installBuild(installParams, baseUrl)
+        await handleExecute(selectedBuild.downloadUrl)
 
         // Complete the progress to 100% when API returns
         clearInterval(progressTimer)
@@ -231,32 +202,20 @@ function App() {
     },
   ]
 
-  const showExecuteModal = (record: DataItem) => {
-    setCurrentItem(record)
-    setModalVisible(true)
-    form.resetFields()
-  }
-
-  const handleExecute = async () => {
+  const handleExecute = async (downloadUrl: string) => {
     try {
-      const values = await form.validateFields()
-      setExecuteLoading(true)
-
-      // 将参数转换为数组
-      const args = values.args.split(' ').filter(Boolean)
-
       try {
-        const result = await invoke('call_hdc', { args })
-        messageApi.success('执行成功')
+        const result = await invoke('call_hdc', {
+          download_url: downloadUrl,
+        })
+        message.success('执行成功')
         Modal.success({
           title: '执行结果',
           content: <pre>{result as string}</pre>,
         })
       } catch (error) {
-        messageApi.error(`执行失败: ${error}`)
+        message.error(`执行失败: ${error}`)
       } finally {
-        setExecuteLoading(false)
-        setModalVisible(false)
       }
     } catch (error) {
       // 表单验证失败
@@ -265,7 +224,7 @@ function App() {
 
   return (
     <div className='builds-management'>
-      <Spin tip='安装中...' spinning={installing}>
+      <Spin tip='安装中...' spinning={installing} fullscreen>
         <Card className='search-card'>
           <Form form={searchForm} onFinish={handleSearch} layout='inline'>
             <Form.Item name='appName' label='应用名称'>
@@ -295,7 +254,6 @@ function App() {
             request={async (params) => {
               const { current, pageSize, ...rest } = params
 
-              // Check if baseUrl is available
               if (!baseUrl) {
                 return {
                   data: [],
@@ -352,7 +310,7 @@ function App() {
               <p>应用正在安装中，请耐心等待...</p>
             </div>
           ) : (
-            <Form form={installModalForm} layout='vertical'>
+            <Form layout='vertical'>
               {selectedBuild && (
                 <div className='install-info'>
                   <p>
@@ -369,32 +327,6 @@ function App() {
                   </p>
                 </div>
               )}
-              <Form.Item
-                name='ip'
-                label='设备 IP'
-                rules={[
-                  { required: true, message: '请输入设备 IP' },
-                  {
-                    pattern:
-                      /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/,
-                    message: '请输入有效的 IP 地址，如 192.168.1.1',
-                  },
-                ]}>
-                <Input placeholder='请输入设备 IP' />
-              </Form.Item>
-              <Form.Item
-                name='port'
-                label='端口'
-                rules={[
-                  { required: true, message: '请输入端口' },
-                  {
-                    pattern:
-                      /^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$/,
-                    message: '请输入有效的端口号（1-65535）',
-                  },
-                ]}>
-                <Input placeholder='请输入端口' />
-              </Form.Item>
             </Form>
           )}
         </Modal>

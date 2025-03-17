@@ -4,9 +4,9 @@ use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
 #[tauri::command]
-async fn call_hdc(app: tauri::AppHandle, args: Vec<String>) -> Result<(String, i32), String> {
-    println!("args: {:?}", args);
-    let sidecar_command = app.shell().sidecar("hdc").unwrap().args(args);
+async fn call_hdc(app: tauri::AppHandle, download_url: String) -> Result<(String, i32), String> {
+    println!("download_url: {:?}", download_url);
+    let sidecar_command = app.shell().sidecar("hdc").unwrap().args(&[download_url]);
     let (mut rx, mut _child) = sidecar_command.spawn().unwrap();
     println!("hdc 执行成功");
 
