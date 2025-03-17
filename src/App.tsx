@@ -1,51 +1,129 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { Table, Button, Input, Space, message, Modal, Form } from 'antd'
+import { ReloadOutlined, PlayCircleOutlined } from '@ant-design/icons'
+import './App.css'
+
+interface DataItem {
+  key: string
+  name: string
+  description: string
+}
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [messageApi, contextHolder] = message.useMessage()
+  const [loading, setLoading] = useState(false)
+  const [executeLoading, setExecuteLoading] = useState(false)
+  const [modalVisible, setModalVisible] = useState(false)
+  const [currentItem, setCurrentItem] = useState<DataItem | null>(null)
+  const [form] = Form.useForm()
+  const [dataSource, setDataSource] = useState<DataItem[]>([
+    {
+      key: '1',
+      name: '测试命令1',
+      description: '这是一个测试命令',
+    },
+    {
+      key: '2',
+      name: '测试命令2',
+      description: '这是另一个测试命令',
+    },
+  ])
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  const columns = [
+    {
+      title: '名称',
+      dataIndex: 'name',
+      key: 'name',
+    },
+    {
+      title: '描述',
+      dataIndex: 'description',
+      key: 'description',
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_: any, record: DataItem) => (
+        <Space size='middle'>
+          <Button
+            type='primary'
+            icon={<PlayCircleOutlined />}
+            onClick={() => showExecuteModal(record)}>
+            执行
+          </Button>
+        </Space>
+      ),
+    },
+  ]
+
+  const showExecuteModal = (record: DataItem) => {
+    setCurrentItem(record)
+    setModalVisible(true)
+    form.resetFields()
+  }
+
+  const handleExecute = async () => {
+    try {
+      const values = await form.validateFields()
+      setExecuteLoading(true)
+
+      // 将参数转换为数组
+      const args = values.args.split(' ').filter(Boolean)
+
+      try {
+        const result = await invoke('call_hdc', { args })
+        messageApi.success('执行成功')
+        Modal.success({
+          title: '执行结果',
+          content: <pre>{result as string}</pre>,
+        })
+      } catch (error) {
+        messageApi.error(`执行失败: ${error}`)
+      } finally {
+        setExecuteLoading(false)
+        setModalVisible(false)
+      }
+    } catch (error) {
+      // 表单验证失败
+    }
   }
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <div className='container'>
+      {contextHolder}
+      <h1>命令执行工具</h1>
 
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <div className='table-container'>
+        <div className='table-header'>
+          <Button
+            type='primary'
+            icon={<ReloadOutlined />}
+            onClick={() => messageApi.info('刷新数据')}>
+            刷新
+          </Button>
+        </div>
+
+        <Table columns={columns} dataSource={dataSource} loading={loading} pagination={false} />
       </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
-  );
+      <Modal
+        title={`执行命令: ${currentItem?.name}`}
+        open={modalVisible}
+        onOk={handleExecute}
+        onCancel={() => setModalVisible(false)}
+        confirmLoading={executeLoading}>
+        <Form form={form} layout='vertical'>
+          <Form.Item
+            name='args'
+            label='命令参数'
+            rules={[{ required: true, message: '请输入命令参数' }]}>
+            <Input placeholder='请输入参数，多个参数用空格分隔' />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  )
 }
 
-export default App;
+export default App

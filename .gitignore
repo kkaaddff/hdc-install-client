@@ -25,3 +25,4 @@ dist-ssr
 
 targets
 node_modules
+gen
