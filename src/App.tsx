@@ -12,12 +12,12 @@ interface DataItem {
 
 function App() {
   const [messageApi, contextHolder] = message.useMessage()
-  const [loading, setLoading] = useState(false)
+  const [loading] = useState(false)
   const [executeLoading, setExecuteLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
   const [currentItem, setCurrentItem] = useState<DataItem | null>(null)
   const [form] = Form.useForm()
-  const [dataSource, setDataSource] = useState<DataItem[]>([
+  const [dataSource] = useState<DataItem[]>([
     {
       key: '1',
       name: '测试命令1',
