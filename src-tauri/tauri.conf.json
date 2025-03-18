@@ -14,7 +14,9 @@
       {
         "title": "鸿蒙测试应用安装器",
         "width": 1200,
-        "height": 800
+        "minWidth": 800,
+        "height": 800,
+        "minHeight": 600
       }
     ],
     "security": {
@@ -24,14 +26,25 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png"],
-    "externalBin": ["binaries/hdc"],
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/hdc"
+    ],
     "resources": {
-      "binaries/libusb_shared.dylib": "libusb_shared.dylib"
+      "binaries/libusb_shared.dylib": "libusb_shared.dylib",
+      "binaries/libusb_shared.dll": "libusb_shared.dll"
     },
     "macOS": {
       "files": {
         "MacOS/libusb_shared.dylib": "binaries/libusb_shared.dylib"
+      }
+    },
+    "windows": {
+      "wix": {
+        "language": "zh-CN"
       }
     }
   }
