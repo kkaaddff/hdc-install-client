@@ -31,7 +31,6 @@ function App() {
           return
         }
         setBaseUrl(baseUrl)
-        actionRef.current?.reload()
       } catch (error: any) {
         message.error('获取 baseUrl 失败')
       }
@@ -114,10 +113,10 @@ function App() {
 
         setTimeout(() => {
           if (code === 0) {
-            message.success('安装成功', 10)
+            message.success('安装成功', 5)
             setInstallStatus('success')
           } else {
-            message.error('安装失败', 10)
+            message.error('安装失败', 5)
             setInstallStatus('failed')
           }
           setInstalling(false)
@@ -126,7 +125,7 @@ function App() {
         clearInterval(progressTimer)
         setInstalling(false)
         setInstallStatus('failed')
-        message.error('安装失败', 10)
+        message.error('安装失败', 5)
       }
     } catch (error) {
       console.error('Form validation failed:', error)
@@ -214,12 +213,10 @@ function App() {
             </Form.Item>
             <Form.Item>
               <Space>
-                <Button type='primary' htmlType='submit' disabled={!baseUrl}>
+                <Button type='primary' htmlType='submit'>
                   查询
                 </Button>
-                <Button onClick={handleReset} disabled={!baseUrl}>
-                  重置
-                </Button>
+                <Button onClick={handleReset}>重置</Button>
               </Space>
             </Form.Item>
           </Form>
@@ -233,23 +230,12 @@ function App() {
             request={async (params) => {
               const { current, pageSize, ...rest } = params
 
-              if (!baseUrl) {
-                return {
-                  data: [],
-                  success: false,
-                  total: 0,
-                }
-              }
-
               try {
-                const response = await queryBuilds(
-                  {
-                    page: current,
-                    pageSize,
-                    ...rest,
-                  },
-                  baseUrl
-                )
+                const response = await queryBuilds({
+                  page: current,
+                  pageSize,
+                  ...rest,
+                })
                 return {
                   data: response.data.records,
                   success: true,

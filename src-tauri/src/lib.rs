@@ -75,7 +75,12 @@ async fn call_hdc(app: tauri::AppHandle, download_url: String) -> Result<(String
         stdout.push_str(&download_start_msg);
         app.emit("hdc-output", &download_start_msg).unwrap();
 
-        let response = reqwest::get(&download_url)
+        let response = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .map_err(|e| format!("创建HTTP客户端失败: {}", e))?
+            .get(&download_url)
+            .send()
             .await
             .map_err(|e| format!("下载文件失败: {}", e))?;
 

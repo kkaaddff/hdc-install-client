@@ -74,8 +74,8 @@ export const request = async (
 /**
  * Query build list
  */
-export const queryBuilds = async (params: BuildQueryParams, baseUrl: string = '') => {
-  const res = await request(`https:${baseUrl}/build/query`, {
+export const queryBuilds = async (params: BuildQueryParams) => {
+  const res = await request(`https://qa-fta-server.amh-group.com/harmony/build/query`, {
     method: 'GET',
     params,
   })
