@@ -86,7 +86,7 @@ export const queryBuilds = async (params: BuildQueryParams, baseUrl: string = ''
  * Get config for harmony builds
  */
 export const getHarmonyConfig = async () => {
-  const res = await request('//qa-fta-server.amh-group.com/config/getConfigByName', {
+  const res = await request('https://qa-fta-server.amh-group.com/config/getConfigByName', {
     method: 'GET',
     params: { configName: 'harmony-hdc-server' },
   })

@@ -32,7 +32,7 @@ function App() {
         }
         setBaseUrl(baseUrl)
         actionRef.current?.reload()
-      } catch (error) {
+      } catch (error: any) {
         message.error('获取 baseUrl 失败')
       }
     }
@@ -98,11 +98,12 @@ function App() {
       let progress = 0
       const progressTimer = setInterval(() => {
         progress += 1
+
         const adjustedProgress =
           progress <= 40 ? (progress / 40) * 70 : 70 + ((progress - 40) / 60) * 25
 
         setInstallProgress(Math.min(Math.round(adjustedProgress), 95))
-      }, 1000)
+      }, 500)
 
       try {
         const [_, code] = await handleExecute(selectedBuild.downloadUrl)
@@ -113,10 +114,10 @@ function App() {
 
         setTimeout(() => {
           if (code === 0) {
-            message.success('安装成功')
+            message.success('安装成功', 10)
             setInstallStatus('success')
           } else {
-            message.error('安装失败')
+            message.error('安装失败', 10)
             setInstallStatus('failed')
           }
           setInstalling(false)
@@ -125,7 +126,7 @@ function App() {
         clearInterval(progressTimer)
         setInstalling(false)
         setInstallStatus('failed')
-        message.error('安装失败')
+        message.error('安装失败', 10)
       }
     } catch (error) {
       console.error('Form validation failed:', error)
