@@ -1,12 +1,15 @@
 import ProTable, { ActionType, ProColumns } from '@ant-design/pro-table'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { Button, Card, Form, Input, message, Modal, Progress, Space, Spin, Tag } from 'antd'
+import { Button, Card, Form, Input, message, Modal, Progress, Select, Space, Spin, Tag } from 'antd'
 import dayjs from 'dayjs'
+import { pickBy } from 'lodash-es'
 import { useEffect, useRef, useState } from 'react'
 import type { BuildEntity, BuildQueryParams } from './api'
 import { getHarmonyConfig, queryBuilds } from './api'
 import './App.css'
+
+const { Option } = Select
 
 function App() {
   const actionRef = useRef<ActionType>()
@@ -27,8 +30,7 @@ function App() {
       try {
         const baseUrl = await getHarmonyConfig()
         if (!baseUrl) {
-          message.error('获取 baseUrl 失败，无法加载数据')
-          return
+          throw new Error()
         }
         setBaseUrl(baseUrl)
       } catch (error: any) {
@@ -142,25 +144,23 @@ function App() {
       title: '构建类型',
       dataIndex: 'buildType',
       width: 80,
-      valueEnum: {
-        debug: { text: 'Debug', status: 'default' },
-        release: { text: 'Release', status: 'success' },
-      },
       render: (_, record) => (
-        <Tag color={record.buildType === 'release' ? 'success' : 'default'}>{record.buildType}</Tag>
+        <Tag
+          color={
+            record.buildType === 'release'
+              ? 'error'
+              : record.buildType === 'debug'
+              ? 'success'
+              : 'warning'
+          }>
+          {record.buildType}
+        </Tag>
       ),
     },
     {
       title: '分支',
       dataIndex: 'branch',
-      width: 150,
-    },
-    {
-      title: '构建时间',
-      dataIndex: 'buildTime',
-      width: 150,
-      hideInSearch: true,
-      render: (_, record) => dayjs(record.buildTime).format('YYYY-MM-DD HH:mm:ss'),
+      width: 250,
     },
     {
       title: '构建编号',
@@ -206,10 +206,24 @@ function App() {
         <Card className='search-card'>
           <Form form={searchForm} onFinish={handleSearch} layout='inline'>
             <Form.Item name='appName' label='应用名称'>
-              <Input placeholder='请输入应用名称' allowClear autoComplete='off' />
+              <Select placeholder='请选择应用名称' allowClear>
+                <Option value='YMMShipper'>运满满货主</Option>
+                <Option value='YMMDriver'>运满满司机</Option>
+                <Option value='SSShipper'>省省货主</Option>
+                <Option value='SSDriver'>省省司机</Option>
+                <Option value='ColdShipper'>冷运货主</Option>
+                <Option value='ColdDriver'>冷运司机</Option>
+              </Select>
             </Form.Item>
             <Form.Item name='branch' label='分支'>
               <Input placeholder='请输入分支名称' allowClear autoComplete='off' />
+            </Form.Item>
+            <Form.Item name='buildType' label='构建类型'>
+              <Select placeholder='请选择构建类型' allowClear style={{ width: 120 }}>
+                <Option value='debug'>debug</Option>
+                <Option value='rel_can'>rel_can(TF)</Option>
+                <Option value='release'>release</Option>
+              </Select>
             </Form.Item>
             <Form.Item>
               <Space>
@@ -228,13 +242,15 @@ function App() {
             rowKey='id'
             search={false}
             request={async (params) => {
-              const { current, pageSize, ...rest } = params
+              const { current, pageSize } = params
+              const values = searchForm.getFieldsValue()
+              const truthValues = pickBy(values, Boolean)
 
               try {
                 const response = await queryBuilds({
                   page: current,
                   pageSize,
-                  ...rest,
+                  ...truthValues,
                 })
                 return {
                   data: response.data.records,

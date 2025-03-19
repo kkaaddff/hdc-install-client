@@ -56,8 +56,10 @@ async fn call_hdc(app: tauri::AppHandle, download_url: String) -> Result<(String
     }
 
     if devices_output.contains("[Empty]") || devices_output.contains("[错误]") {
-        let no_device_msg = "没有可操作设备，请连接设备后重试\n";
+        let no_device_msg = "没有可操作设备，开启鸿蒙手机开发者模式并检测设备连接后重试\n";
         stdout.push_str(no_device_msg);
+        app.emit("hdc-output", no_device_msg).unwrap();
+        let no_device_msg = "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/ide-developer-mode-V5\n";
         app.emit("hdc-output", no_device_msg).unwrap();
         return Ok((stdout, 1));
     }
