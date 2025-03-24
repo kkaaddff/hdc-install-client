@@ -1,15 +1,36 @@
 import ProTable, { ActionType, ProColumns } from '@ant-design/pro-table'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { Button, Card, Form, Input, message, Modal, Progress, Select, Space, Spin, Tag } from 'antd'
+import { Button, Card, Form, message, Modal, Progress, Select, Space, Spin, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { pickBy } from 'lodash-es'
 import { useEffect, useRef, useState } from 'react'
 import type { BuildEntity, BuildQueryParams } from './api'
-import { getHarmonyConfig, queryBuilds } from './api'
+import { getHarmonyConfig, queryBuilds, requestGitlab } from './api'
 import './App.css'
 
 const { Option } = Select
+
+export interface IBranch {
+  name: string
+  commit: {
+    author_name: string
+  }
+  protected: boolean
+}
+
+const PRESENT_PROJECT_ID = {
+  YMMShipper: '23092',
+  YMMDriver: '23092',
+  SSShipper: '23524',
+  SSDriver: '23524',
+  ColdShipper: '23525',
+  ColdDriver: '23525',
+}
+
+const getBranchList = (id: string): Promise<IBranch[]> => {
+  return requestGitlab(`/projects/${id}/repository/branches?per_page=500&sort=updated_desc`)
+}
 
 function App() {
   const actionRef = useRef<ActionType>()
@@ -24,6 +45,8 @@ function App() {
     'idle'
   )
   const outputRef = useRef<HTMLPreElement>(null)
+  const [branchList, setBranchList] = useState<IBranch[]>([])
+  const [branchLoading, setBranchLoading] = useState<boolean>(false)
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -64,6 +87,39 @@ function App() {
   const handleReset = () => {
     searchForm.resetFields()
     actionRef.current?.reload()
+  }
+
+  const loadBranches = async (appName: string) => {
+    if (!appName) {
+      setBranchList([])
+      return
+    }
+
+    const projectId = PRESENT_PROJECT_ID[appName as keyof typeof PRESENT_PROJECT_ID]
+    if (!projectId) {
+      setBranchList([])
+      return
+    }
+
+    setBranchLoading(true)
+    try {
+      const branches = await getBranchList(projectId)
+      setBranchList(branches)
+    } catch (error) {
+      message.error('获取分支列表失败')
+      setBranchList([])
+    } finally {
+      setBranchLoading(false)
+    }
+  }
+
+  const handleAppNameChange = (value: string) => {
+    searchForm.setFieldValue('branch', undefined)
+    if (value) {
+      loadBranches(value)
+    } else {
+      setBranchList([])
+    }
   }
 
   const handleInstall = (record: BuildEntity) => {
@@ -143,7 +199,7 @@ function App() {
     {
       title: '构建类型',
       dataIndex: 'buildType',
-      width: 80,
+      width: 150,
       render: (_, record) => (
         <Tag
           color={
@@ -153,7 +209,11 @@ function App() {
               ? 'success'
               : 'warning'
           }>
-          {record.buildType}
+          {record.buildType === 'release'
+            ? '封板发布阶段(release)'
+            : record.buildType === 'debug'
+            ? '线下环境测试阶段(test)'
+            : 'release回归阶段(TF)'}
         </Tag>
       ),
     },
@@ -206,7 +266,11 @@ function App() {
         <Card className='search-card'>
           <Form form={searchForm} onFinish={handleSearch} layout='inline'>
             <Form.Item name='appName' label='应用名称'>
-              <Select placeholder='请选择应用名称' allowClear>
+              <Select
+                placeholder='请选择应用名称'
+                allowClear
+                onChange={handleAppNameChange}
+                style={{ width: 150 }}>
                 <Option value='YMMShipper'>运满满货主</Option>
                 <Option value='YMMDriver'>运满满司机</Option>
                 <Option value='SSShipper'>省省货主</Option>
@@ -216,13 +280,30 @@ function App() {
               </Select>
             </Form.Item>
             <Form.Item name='branch' label='分支'>
-              <Input placeholder='请输入分支名称' allowClear autoComplete='off' />
+              <Select
+                placeholder='请选择或搜索分支'
+                allowClear
+                showSearch
+                loading={branchLoading}
+                disabled={!searchForm.getFieldValue('appName')}
+                filterOption={(input, option) =>
+                  (option?.children as unknown as string)
+                    ?.toLowerCase()
+                    .includes(input.toLowerCase())
+                }
+                style={{ width: 220 }}>
+                {branchList.map((branch) => (
+                  <Option key={branch.name} value={`origin/${branch.name}`}>
+                    {branch.name}
+                  </Option>
+                ))}
+              </Select>
             </Form.Item>
             <Form.Item name='buildType' label='构建类型'>
-              <Select placeholder='请选择构建类型' allowClear style={{ width: 120 }}>
-                <Option value='debug'>debug</Option>
-                <Option value='rel_can'>rel_can(TF)</Option>
-                <Option value='release'>release</Option>
+              <Select placeholder='请选择构建类型' allowClear style={{ width: 220 }}>
+                <Option value='debug'>线下环境测试阶段(test)</Option>
+                <Option value='rel_can'>release回归阶段(TF)</Option>
+                <Option value='release'>封板发布阶段(release)(不支持安装)</Option>
               </Select>
             </Form.Item>
             <Form.Item>

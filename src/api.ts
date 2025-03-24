@@ -28,9 +28,10 @@ export const request = async (
     method: 'GET' | 'POST' | 'PUT' | 'DELETE'
     params?: Record<string, any>
     data?: any
+    headers?: Record<string, string>
   }
 ) => {
-  const { method, params, data } = options
+  const { method, params, data, headers } = options
 
   // 处理 GET 请求的查询参数
   let requestUrl = url
@@ -50,6 +51,7 @@ export const request = async (
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...headers,
     },
   }
 
@@ -92,4 +94,23 @@ export const getHarmonyConfig = async () => {
   })
 
   return (res?.data?.value?.url as string) ?? ''
+}
+
+export const GitlabPrivateToken = 'rYuyyNkH7Dwaz2LSpozv'
+
+export function requestGitlab(
+  restApi: string,
+  {
+    data,
+    method = 'GET',
+  }: {
+    data?: any
+    method?: 'POST' | 'GET' | 'PUT' | 'DELETE'
+  } = {}
+): Promise<any> {
+  return request(`https://code.amh-group.com/api/v4${restApi}`, {
+    method,
+    headers: { 'PRIVATE-TOKEN': GitlabPrivateToken },
+    data,
+  })
 }
