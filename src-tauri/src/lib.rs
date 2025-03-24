@@ -3,11 +3,52 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 use walkdir::WalkDir;
 use zip::ZipArchive;
+
+/// 创建应用缓存目录
+fn create_app_cache_dir() -> Result<PathBuf, String> {
+    let cache_dir = env::temp_dir().join("hdc-app-cache");
+    fs::create_dir_all(&cache_dir).map_err(|e| format!("创建缓存目录失败: {}", e))?;
+    Ok(cache_dir)
+}
+
+/// 清理一个月前的缓存文件
+fn clean_old_cache_files() -> Result<(), String> {
+    let cache_dir = create_app_cache_dir()?;
+    let one_month_ago = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| format!("获取系统时间失败: {}", e))?
+        .checked_sub(Duration::from_secs(30 * 24 * 60 * 60))
+        .ok_or_else(|| "计算时间失败".to_string())?;
+
+    for entry in WalkDir::new(&cache_dir).min_depth(1).max_depth(2) {
+        let entry = entry.map_err(|e| format!("遍历缓存目录失败: {}", e))?;
+        let path = entry.path();
+
+        if let Ok(metadata) = fs::metadata(path) {
+            if let Ok(modified_time) = metadata.modified() {
+                if let Ok(modified_duration) = modified_time.duration_since(UNIX_EPOCH) {
+                    if modified_duration.as_secs() < one_month_ago.as_secs() {
+                        if path.is_dir() {
+                            fs::remove_dir_all(path)
+                                .map_err(|e| format!("删除旧缓存目录失败: {}", e))?;
+                        } else {
+                            fs::remove_file(path)
+                                .map_err(|e| format!("删除旧缓存文件失败: {}", e))?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
 
 #[tauri::command]
 async fn call_hdc(app: tauri::AppHandle, download_url: String) -> Result<(String, i32), String> {
@@ -64,9 +105,19 @@ async fn call_hdc(app: tauri::AppHandle, download_url: String) -> Result<(String
         return Ok((stdout, 1));
     }
 
-    let temp_dir = env::temp_dir();
+    // 创建应用专用的缓存目录
+    let cache_dir = create_app_cache_dir()?;
     let file_name = download_url.split('/').last().unwrap_or("app.hap");
-    let file_path = temp_dir.join(file_name);
+
+    // 使用文件名的主干部分（不带扩展名）作为目录名
+    let file_stem = Path::new(file_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("app");
+    let app_cache_dir = cache_dir.join(file_stem);
+    fs::create_dir_all(&app_cache_dir).map_err(|e| format!("创建应用缓存目录失败: {}", e))?;
+
+    let file_path = app_cache_dir.join(file_name);
 
     if file_path.exists() {
         let cache_msg = format!("找到本地缓存文件: {}\n", file_path.display());
@@ -103,7 +154,7 @@ async fn call_hdc(app: tauri::AppHandle, download_url: String) -> Result<(String
         stdout.push_str(&extract_msg);
         app.emit("hdc-output", &extract_msg).unwrap();
 
-        let extract_dir = file_path.parent().unwrap_or(&temp_dir);
+        let extract_dir = app_cache_dir;
         let zip_base_name = Path::new(file_name).file_stem().unwrap_or_default();
         let extract_folder = extract_dir.join(zip_base_name);
 
@@ -161,7 +212,7 @@ async fn call_hdc(app: tauri::AppHandle, download_url: String) -> Result<(String
 
         let mut hap_file: Option<PathBuf> = None;
 
-        for entry in WalkDir::new(extract_dir) {
+        for entry in WalkDir::new(&extract_dir) {
             let entry = entry.map_err(|e| format!("遍历目录失败: {}", e))?;
             let path = entry.path();
 
@@ -246,6 +297,18 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![call_hdc])
+        .setup(|_app| {
+            // 启动后1分钟运行缓存清理
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(60));
+                if let Err(e) = clean_old_cache_files() {
+                    println!("清理缓存失败: {}", e);
+                } else {
+                    println!("缓存清理完成");
+                }
+            });
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
