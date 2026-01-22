@@ -206,14 +206,14 @@ function App() {
             record.buildType === 'release'
               ? 'error'
               : record.buildType === 'debug'
-              ? 'success'
-              : 'warning'
+                ? 'success'
+                : 'warning'
           }>
           {record.buildType === 'release'
             ? '封板发布阶段(release)'
             : record.buildType === 'debug'
-            ? '线下环境测试阶段(test)'
-            : 'release回归阶段(TF)'}
+              ? '线下环境测试阶段(test)'
+              : 'release回归阶段(TF)'}
         </Tag>
       ),
     },
@@ -277,6 +277,7 @@ function App() {
                 <Option value='SSDriver'>省省司机</Option>
                 <Option value='ColdShipper'>冷运货主</Option>
                 <Option value='ColdDriver'>冷运司机</Option>
+                <Option value='mbj'>满帮家</Option>
               </Select>
             </Form.Item>
             <Form.Item name='branch' label='分支'>
